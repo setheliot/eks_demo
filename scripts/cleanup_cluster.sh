@@ -85,6 +85,7 @@ terraform destroy \
 
 echo "✅ kubernetes_deployment_v1 deleted"
 
+
 echo "🏃 2 of 4 - Running terraform destroy on kubernetes_persistent_volume_claim_v1..."
 
 terraform destroy \
@@ -94,6 +95,7 @@ terraform destroy \
 
 echo "✅ kubernetes_persistent_volume_claim_v1 deleted"
 
+
 echo "🏃 3 of 4 - Running terraform destroy on kubernetes_ingress_v1..."
 
 terraform destroy \
@@ -102,6 +104,7 @@ terraform destroy \
     -var-file=$TFVARS_FILE
 
 echo "✅ kubernetes_ingress_v1 deleted"
+
 
 echo "🏃 4 of 4 - Running terraform destroy on all remaining resources..."
 

@@ -51,8 +51,8 @@ fi
 ###
 
 echo -e "\n========================================="
-echo "😎 Let's create an Amazon EKS Cluster !!!
-echo -e "===========================================\n"
+echo "😎 Let's create an Amazon EKS Cluster !!!"
+echo -e "=========================================\n"
 
 # Check if AWS CLI is installed
 if ! command -v aws &> /dev/null; then
@@ -97,13 +97,15 @@ echo "Proceeding with deployment..."
 # Find the terraform directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 REPO_DIR=$(dirname "$SCRIPT_DIR")
-INIT_DIR = "$REPO_DIR/terraform/init"
+INIT_DIR="$REPO_DIR/terraform/init"
 TF_DIR="$REPO_DIR/terraform/deploy"
 
 ###
 # Create AWS LBC policy if it does not already exist
 ###
 cd $INIT_DIR
+
+echo "Checking AWSLoadBalancerControllerIAMPolicy..."
 
 # Check AWS account whether IAM policy "AWSLoadBalancerControllerIAMPolicy" exists
 if aws iam get-policy --policy-arn "arn:aws:iam::${AWS_ACCOUNT}:policy/AWSLoadBalancerControllerIAMPolicy" >/dev/null 2>&1; then
@@ -113,7 +115,7 @@ else
     terraform init
     terraform apply -auto-approve
     echo "🗝️ AWSLoadBalancerControllerIAMPolicy created."
-fi<end
+fi
 
 ###
 # Verify if backend state is setup and accessible.
@@ -229,6 +231,7 @@ if ! terraform init 2> terraform_init_err.log; then
         echo "👍 Ignoring known state data error and continuing..."
     else
         echo "❌ Unexpected error occurred. Exiting."
+        echo "👉 Check $TF_DIR/terraform_init_err.log for more details."
         exit 1
     fi 
 fi

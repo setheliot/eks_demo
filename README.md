@@ -27,7 +27,19 @@ Run all commands from an environment that has
 
 You have two options:
 
-### Option 1. For those familiar with using Terraform
+### Option 1. Automatic configuration and execution
+
+1. Update the S3 bucket and DynamoDB table used for Terraform backend state here: [backend.tf](terraform/backend.tf). Instructions are in the comments in that file.
+1. Choose one of the `tfvars` configuration files in the [terraform/environment](terraform/environment) directory, or create a new one. The environment name `env_name` should be unique to each `tfvars` configuration file. You can also set the AWS Region in the configuration file.
+1. Run the following commands:
+```bash
+cd scripts
+
+./ez_cluster_deploy.sh
+```
+
+
+### Option 2. For those familiar with using Terraform
 1. Update the S3 bucket and DynamoDB table used for Terraform backend state here: [backend.tf](terraform/backend.tf). Instructions are in the comments in that file.
 1. Create the IAM policy to be used by AWS Load Balancer Controller
     1. This only needs to be done _once_ per AWS account
@@ -66,21 +78,9 @@ Use this DNS name to access the app.  Use `http://` (do _not_ use https). It may
 
 If you want to experiment and make changes to the Terraform, you should be able to start at step 3.
 
-### Option 2. Automatic configuration and execution
-
-1. Update the S3 bucket and DynamoDB table used for Terraform backend state here: [backend.tf](terraform/backend.tf). Instructions are in the comments in that file.
-1. Choose one of the `tfvars` configuration files in the [terraform/environment](terraform/environment) directory, or create a new one. The environment name `env_name` should be unique to each `tfvars` configuration file. You can also set the AWS Region in the configuration file.
-1. Run the following commands:
-```bash
-cd scripts
-
-./ez_cluster_deploy.sh
-```
-
-
 ## Tear-down (clean up) all the resources created
 
-### Scripted
+### Option 1. Scripted
 
 ```bash
 cd scripts
@@ -89,7 +89,7 @@ cd scripts
     -var-file=environment/<selected tfvars file>
 ```
 
-### Do it yourself
+### Option 2. Do it yourself
 
 ```bash
 terraform init
@@ -109,10 +109,15 @@ terraform destroy \
 
 terraform destroy \
     -auto-approve \
+    -target=module.alb[0].kubernetes_ingress_v1.ingress_alb \
+    -var-file=environment/<selected tfvars file>
+
+terraform destroy \
+    -auto-approve \
     -var-file=environment/<selected tfvars file>
 ```
 
-To understand why this requires three separate `destroy` operations, [see this](docs/cleanup.md#tear-down-clean-up-all-the-resources-created). 
+To understand why this requires these separate `destroy` operations, [see this](docs/cleanup.md#tear-down-clean-up-all-the-resources-created). 
 
 ## Known issues
 * [Known issues](docs/known_issues.md)

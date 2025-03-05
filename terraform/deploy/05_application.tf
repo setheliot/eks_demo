@@ -107,7 +107,6 @@ resource "kubernetes_deployment_v1" "guestbook_app_deployment" {
 
 module "alb" {
 
-  # Module uses `aws eks update-kubeconfig` so want to ensure cluster is ready
   depends_on = [module.eks]
 
   source       = "./modules/alb"

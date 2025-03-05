@@ -17,7 +17,7 @@ data "aws_iam_policy" "csi_policy" {
 # Attach the policy to the cluster IAM role
 resource "aws_iam_role_policy_attachment" "csi_policy_attachment" {
   policy_arn = data.aws_iam_policy.csi_policy.arn
-  role       = local.eks_node_iam_role_name
+  role       = module.eks.eks_managed_node_groups["node_group_1"].iam_role_name
 }
 
 #

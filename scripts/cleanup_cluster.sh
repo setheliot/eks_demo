@@ -23,7 +23,7 @@ TFVARS_FILE=$(basename $TFVARS_FILE)
 # Find the terraform directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 REPO_DIR=$(dirname "$SCRIPT_DIR")
-TF_DIR="$REPO_DIR/terraform"
+TF_DIR="$REPO_DIR/terraform/deploy"
 cd $TF_DIR
 
 
@@ -76,7 +76,7 @@ echo "✅ Using Terraform workspace [$ENV_NAME]"
 
 
 # Run Terraform destroy commands
-echo "🏃 1 of 3 - Running terraform destroy on kubernetes_deployment_v1..."
+echo "🏃 1 of 4 - Running terraform destroy on kubernetes_deployment_v1..."
 
 terraform destroy \
     -auto-approve \
@@ -85,7 +85,7 @@ terraform destroy \
 
 echo "✅ kubernetes_deployment_v1 deleted"
 
-echo "🏃 2 of 3 - Running terraform destroy on kubernetes_persistent_volume_claim_v1..."
+echo "🏃 2 of 4 - Running terraform destroy on kubernetes_persistent_volume_claim_v1..."
 
 terraform destroy \
     -auto-approve \
@@ -94,7 +94,16 @@ terraform destroy \
 
 echo "✅ kubernetes_persistent_volume_claim_v1 deleted"
 
-echo "🏃 3 of 3 - Running terraform destroy on all remaining resources..."
+echo "🏃 3 of 4 - Running terraform destroy on kubernetes_ingress_v1..."
+
+terraform destroy \
+    -auto-approve \
+    -target=module.alb[0].kubernetes_ingress_v1.ingress_alb \
+    -var-file=$TFVARS_FILE
+
+echo "✅ kubernetes_ingress_v1 deleted"
+
+echo "🏃 4 of 4 - Running terraform destroy on all remaining resources..."
 
 terraform destroy \
     -auto-approve \

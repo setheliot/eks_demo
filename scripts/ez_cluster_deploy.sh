@@ -50,10 +50,9 @@ fi
 # Verify user is targeting the correct AWS account
 ###
 
-
-echo -e "\n=============================================================="
-echo "😎 Let's create an Amazon EKS Cluster with Auto Mode ENABLED"
-echo -e "==============================================================\n"
+echo -e "\n========================================="
+echo "😎 Let's create an Amazon EKS Cluster !!!
+echo -e "===========================================\n"
 
 # Check if AWS CLI is installed
 if ! command -v aws &> /dev/null; then
@@ -95,17 +94,32 @@ fi
 
 echo "Proceeding with deployment..."
 
+# Find the terraform directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+REPO_DIR=$(dirname "$SCRIPT_DIR")
+INIT_DIR = "$REPO_DIR/terraform/init"
+TF_DIR="$REPO_DIR/terraform/deploy"
+
+###
+# Create AWS LBC policy if it does not already exist
+###
+cd $INIT_DIR
+
+# Check AWS account whether IAM policy "AWSLoadBalancerControllerIAMPolicy" exists
+if aws iam get-policy --policy-arn "arn:aws:iam::${AWS_ACCOUNT}:policy/AWSLoadBalancerControllerIAMPolicy" >/dev/null 2>&1; then
+    echo "🗝️ AWSLoadBalancerControllerIAMPolicy already exists."
+else
+    echo "👉 Creating AWSLoadBalancerControllerIAMPolicy..."
+    terraform init
+    terraform apply -auto-approve
+    echo "🗝️ AWSLoadBalancerControllerIAMPolicy created."
+fi<end
 
 ###
 # Verify if backend state is setup and accessible.
 ###
 
-# Find the terraform directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
-REPO_DIR=$(dirname "$SCRIPT_DIR")
-TF_DIR="$REPO_DIR/terraform"
 cd $TF_DIR
-
 
 # Extract backend configuration from backend.tf
 BACKEND_FILE="./backend.tf"
@@ -118,7 +132,7 @@ BE_REGION=$(awk -F'"' '/region/{print $2}' "$BACKEND_FILE" | xargs)
 if [[ -z "$BUCKET_NAME" || -z "$DDB_TABLE_NAME" || -z "$BE_REGION" ]]; then
     echo "❌ Error: Unable to parse backend configuration from $BACKEND_FILE"
     exit 1
-elif [[ "$IS_SETH" == "false" && "$BUCKET_NAME" == "terraform-state-bucket-eks-auto-uniqueid" ]]; then
+elif [[ "$IS_SETH" == "false" && "$BUCKET_NAME" == "terraform-state-bucket-eks-demo-uniqueid" ]]; then
     echo "❌ Error: Please update the backend configuration in $BACKEND_FILE with a UNIQUE bucket name."
     exit 1
 else

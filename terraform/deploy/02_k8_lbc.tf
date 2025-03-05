@@ -1,6 +1,7 @@
 ###############
 #
 # AWS Load Balancer Controller (LBC) in the Kubernetes Cluster
+# https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/deploy/installation
 #
 # Logical order: 02 
 ##### "Logical order" refers to the order a human would think of these executions
@@ -20,7 +21,7 @@ data "aws_iam_policy" "lbc_policy" {
 # Attach the policy to the node IAM role
 resource "aws_iam_role_policy_attachment" "alb_policy_node" {
   policy_arn = data.aws_iam_policy.lbc_policy.arn
-  role       = local.eks_node_iam_role_name
+  role       = module.eks.eks_managed_node_groups["node_group_1"].iam_role_name
 }
 
 #
@@ -62,5 +63,9 @@ resource "helm_release" "aws_load_balancer_controller" {
     name  = "vpcId"
     value = module.vpc.vpc_id
   }
+
+  # Give time for the cluster to complete (controllers, RBAC and IAM propagation)
+  # See https://github.com/setheliot/eks_demo/blob/main/docs/separate_configs.md
+  depends_on = [module.eks]  
 }
 

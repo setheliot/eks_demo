@@ -61,6 +61,11 @@ module "vpc" {
   }
 }
 
+# The managed node group will add a unique ID to the end of this
+locals {
+  eks_node_iam_role_name = "eks-node-role-${local.cluster_name}"
+}
+
 #
 # EKS Cluster
 module "eks" {
@@ -84,7 +89,7 @@ module "eks" {
   }  
 
   eks_managed_node_groups = {
-    xyz_managed_nodes = {
+    node_group_1 = {
       name                           = "${local.prefix_env}-node-group"
       ami_type                       = "AL2023_x86_64_STANDARD"
       use_latest_ami_release_version = true
@@ -111,7 +116,7 @@ module "eks" {
       iam_role_additional_policies = {
         ssm_access      = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
       } # iam_role_additional_policies
-    }   # xyz_managed_nodes
+    }   # node_group_1
   }     # eks_managed_node_groups
 
   # Cluster access entry

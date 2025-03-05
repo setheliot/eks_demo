@@ -27,8 +27,6 @@ locals {
   aws_account = data.aws_caller_identity.current.account_id
 
   ebs_claim_name = "ebs-volume-pv-claim"
-
-  eks_node_iam_role_name = "eks-node-role-${local.cluster_name}"
 }
 
 #
@@ -46,4 +44,14 @@ provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
   token                  = data.aws_eks_cluster_auth.cluster_auth.token
+}
+
+#
+# Helm provider for the cluster
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    token                  = data.aws_eks_cluster_auth.cluster_auth.token
+  }
 }

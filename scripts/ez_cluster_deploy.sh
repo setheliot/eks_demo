@@ -42,7 +42,7 @@ check_dynamodb_table() {
 
 IS_SETH=false
 
-if [[ "$1" == "-seth" ]]; then
+if [[ "$1" == "-seth" || "$1" == "--seth" ]]; then
     IS_SETH=true
 fi
 
@@ -229,12 +229,20 @@ echo "🏃 Running terraform init..."
 if ! terraform init 2> terraform_init_err.log; then
     if grep -q "Error refreshing state: state data in S3 does not have the expected content." terraform_init_err.log; then
         echo "👍 Ignoring known state data error and continuing..."
+    elif grep -q "Backend configuration changed" terraform_init_err.log; then
+        if ! terraform init -reconfigure 2>> terraform_init_err.log; then
+            echo "❌ Error occurred during terraform init -reconfigure. Exiting."
+            echo "👉 Check $TF_DIR/terraform_init_err.log for more details."
+            exit 1
+        fi
     else
         echo "❌ Unexpected error occurred. Exiting."
         echo "👉 Check $TF_DIR/terraform_init_err.log for more details."
         exit 1
     fi 
 fi
+
+echo "✅ terraform init completed successfully."
 
 if [ -f terraform_init_err.log ]; then
     rm terraform_init_err.log

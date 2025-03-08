@@ -41,15 +41,15 @@ module "vpc" {
   # Tag subnets for use by AWS Load Balancer controller
   # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.1/deploy/subnet_discovery/
   public_subnet_tags = {
-    "kubernetes.io/role/elb"                        = "1"     # ✅ Required for ALB
+    "kubernetes.io/role/elb"                      = "1"     # ✅ Required for ALB
     "kubernetes.io/cluster/${local.cluster_name}" = "owned" # Links subnet to EKS
-    "Name"                                          = "${local.prefix_env}-public-subnet"
+    "Name"                                        = "${local.prefix_env}-public-subnet"
   }
 
   private_subnet_tags = {
-    "kubernetes.io/role/internal-elb"               = "1" # For internal load balancers
+    "kubernetes.io/role/internal-elb"             = "1" # For internal load balancers
     "kubernetes.io/cluster/${local.cluster_name}" = "owned"
-    "Name"                                          = "${local.prefix_env}-private-subnet"
+    "Name"                                        = "${local.prefix_env}-private-subnet"
   }
 
   tags = {
@@ -86,7 +86,7 @@ module "eks" {
   cluster_addons = {
     eks-pod-identity-agent = {},
     aws-ebs-csi-driver     = {}
-  }  
+  }
 
   eks_managed_node_groups = {
     node_group_1 = {
@@ -114,7 +114,7 @@ module "eks" {
       # Attach the managed policies for SSM access by the nodes
       iam_role_name = local.eks_node_iam_role_name
       iam_role_additional_policies = {
-        ssm_access      = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        ssm_access = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
       } # iam_role_additional_policies
     }   # node_group_1
   }     # eks_managed_node_groups

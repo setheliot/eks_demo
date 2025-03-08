@@ -46,7 +46,7 @@ resource "kubernetes_storage_class" "ebs" {
   # https://docs.aws.amazon.com/eks/latest/userguide/create-storage-class.html
   parameters = {
     type      = "gp3"
-    fsType    = "ext4"    
+    fsType    = "ext4"
     encrypted = "true"
   }
 

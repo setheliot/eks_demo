@@ -109,9 +109,9 @@ module "alb" {
 
   depends_on = [module.eks]
 
-  source       = "./modules/alb"
-  prefix_env   = local.prefix_env
-  app_name     = local.app_name
+  source     = "./modules/alb"
+  prefix_env = local.prefix_env
+  app_name   = local.app_name
 
   count = var.use_alb ? 1 : 0
 }

@@ -31,6 +31,10 @@ resource "kubernetes_service_account" "alb_controller" {
     name      = "aws-load-balancer-controller"
     namespace = "kube-system"
   }
+
+  # Give time for the cluster to complete (controllers, RBAC and IAM propagation)
+  # See https://github.com/setheliot/eks_demo/blob/main/docs/separate_configs.md
+  depends_on = [module.eks]  
 }
 
 resource "helm_release" "aws_load_balancer_controller" {
@@ -66,6 +70,6 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   # Give time for the cluster to complete (controllers, RBAC and IAM propagation)
   # See https://github.com/setheliot/eks_demo/blob/main/docs/separate_configs.md
-  depends_on = [module.eks]  
+  depends_on = [module.eks]
 }
 

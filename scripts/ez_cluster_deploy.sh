@@ -88,7 +88,7 @@ read -r -p "Proceed? [y/n]: " response
 
 # Check if response is "y" or "yes"
 if [[ ! "$response" =~ ^[Yy]([Ee][Ss])?$ ]]; then
-    echo "Please update your AWS credentials to target the correct AWS account, and then re-run this script.    "
+    echo "👋 Good bye!"
     exit 1
 fi
 

@@ -44,7 +44,26 @@ if [[ -z "$ENV_NAME" ]]; then
     exit 1
 fi
 
-echo "✅ Selected environment: $ENV_NAME (from $(basename "$TFVARS_FILE"))"
+# Get AWS Account ID using STS
+AWS_ACCOUNT=$(aws sts get-caller-identity --query "Account" --output text 2>/dev/null)
+
+# Check if AWS_ACCOUNT is empty (invalid credentials)
+if [[ -z "$AWS_ACCOUNT" || "$AWS_ACCOUNT" == "None" ]]; then
+    echo "There are no valid AWS credentials. Please update your AWS credentials to target the correct AWS account."
+    exit 1
+fi
+
+# Prompt the user for confirmation
+echo "✅ Selected environment: [$ENV_NAME] (from [$(basename "$TFVARS_FILE")])"
+echo "💣 Your EKS cluster in AWS account [${AWS_ACCOUNT}] will be DESTROYED"
+echo "😇 Is that what you want?\n"
+read -r -p "Proceed? [y/n]: " response
+
+# Check if response is "y" or "yes"
+if [[ ! "$response" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    echo "👋 Good bye!"
+    exit 1
+fi
 
 echo "🏃 Running terraform init..."
 if ! terraform init 2> terraform_init_err.log; then

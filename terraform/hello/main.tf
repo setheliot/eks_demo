@@ -14,6 +14,6 @@ resource "local_file" "hello_file" {
 
 
 output "filename" {
-  value = local_file.hello_file.filename 
+  value = local_file.hello_file.filename
 }
 

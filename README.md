@@ -29,8 +29,8 @@ You have two options:
 
 ### Option 1. Automatic configuration and execution
 
-1. Update the S3 bucket and DynamoDB table used for Terraform backend state here: [backend.tf](terraform/backend.tf). Instructions are in the comments in that file.
-1. Choose one of the `tfvars` configuration files in the [terraform/environment](terraform/environment) directory, or create a new one. The environment name `env_name` should be unique to each `tfvars` configuration file. You can also set the AWS Region in the configuration file.
+1. Update the S3 bucket and DynamoDB table used for Terraform backend state here: [backend.tf](terraform/deploy/backend.tf). Instructions are in the comments in that file.
+1. Choose one of the `tfvars` configuration files in the [terraform/deploy/environment](terraform/deploy/environment) directory, or create a new one. The environment name `env_name` should be unique to each `tfvars` configuration file. You can also set the AWS Region in the configuration file.
 1. Run the following commands:
 ```bash
 cd scripts
@@ -40,11 +40,11 @@ cd scripts
 
 
 ### Option 2. For those familiar with using Terraform
-1. Update the S3 bucket and DynamoDB table used for Terraform backend state here: [backend.tf](terraform/backend.tf). Instructions are in the comments in that file.
+1. Update the S3 bucket and DynamoDB table used for Terraform backend state here: [backend.tf](terraform/deploy/backend.tf). Instructions are in the comments in that file.
 1. Create the IAM policy to be used by AWS Load Balancer Controller
     1. This only needs to be done _once_ per AWS account
     2. Create the IAM policy using the terraform in [terraform/init](terraform/init)
-1. Choose one of the `tfvars` configuration files in the [terraform/environment](terraform/environment) directory, or create a new one. The environment name `env_name` should be unique to each `tfvars` configuration file. You can also set the AWS Region in the configuration file.
+1. Choose one of the `tfvars` configuration files in the [terraform/deploy/environment](terraform/deploy/environment) directory, or create a new one. The environment name `env_name` should be unique to each `tfvars` configuration file. You can also set the AWS Region in the configuration file.
 1. `cd` into the `terraform/deploy` directory
 1. Initialize Terraform
     ```bash

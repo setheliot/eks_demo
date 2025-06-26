@@ -63,8 +63,9 @@ module "vpc" {
 
 # The managed node group will add a unique ID to the end of this
 locals {
-  eks_node_iam_role_name = "eks-node-role-${local.cluster_name}"
+  eks_node_iam_role_name = substr("eks-node-role-${local.cluster_name}", 0, 36)
 }
+
 
 #
 # EKS Cluster

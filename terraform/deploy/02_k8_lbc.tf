@@ -43,30 +43,30 @@ resource "helm_release" "aws_load_balancer_controller" {
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
 
-  set {
-    name  = "clusterName"
-    value = local.cluster_name
-  }
+  # This uses the v3 Helm provider syntax (https://registry.terraform.io/providers/hashicorp/helm/3.0.2/docs/guides/v3-upgrade-guide)
+  set = [
+    {
+      name  = "clusterName"
+      value = local.cluster_name
+    },
+    {
+      name  = "serviceAccount.create"
+      value = "false"
+    },
+    {
+      name  = "serviceAccount.name"
+      value = kubernetes_service_account.alb_controller.metadata[0].name
+    },
+    {
+      name  = "region"
+      value = var.aws_region
+    },
+    {
+      name  = "vpcId"
+      value = module.vpc.vpc_id
+    }
+  ]
 
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = kubernetes_service_account.alb_controller.metadata[0].name
-  }
-
-  set {
-    name  = "region"
-    value = var.aws_region
-  }
-
-  set {
-    name  = "vpcId"
-    value = module.vpc.vpc_id
-  }
 
   # Give time for the cluster to complete (controllers, RBAC and IAM propagation)
   # See https://github.com/setheliot/eks_demo/blob/main/docs/separate_configs.md

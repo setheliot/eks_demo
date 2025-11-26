@@ -13,7 +13,7 @@ locals {
   app_name = "guestbook-${local.prefix_env}"
 }
 
-# This defines the kubernetes deployment for the guestbook (XYZ) app
+# This defines the kubernetes deployment for the guestbook app
 resource "kubernetes_deployment_v1" "guestbook_app_deployment" {
   metadata {
     name = "${local.app_name}-deployment"
@@ -64,6 +64,13 @@ resource "kubernetes_deployment_v1" "guestbook_app_deployment" {
             mount_path = "/app/data" # Path inside the container
           }
 
+          # Mount secrets from Secrets Manager
+          volume_mount {
+            name       = "secrets-store"
+            mount_path = "/mnt/secrets"
+            read_only  = true
+          }
+
           # Store the DDB Table name for use by the container
           env {
             name  = "DDB_TABLE"
@@ -94,6 +101,20 @@ resource "kubernetes_deployment_v1" "guestbook_app_deployment" {
             claim_name = local.ebs_claim_name
           }
         } #volumes
+
+        # Define the secrets CSI volume
+        volume {
+          name = "secrets-store"
+
+          csi {
+            driver    = "secrets-store.csi.k8s.io"
+            read_only = true
+
+            volume_attributes = {
+              secretProviderClass = "test-secret-provider"
+            }
+          }
+        } #secrets volume
       }   #spec (template)
     }     #template
   }       #spec (resource)

@@ -10,6 +10,7 @@ This Terraform configuration deploys the following resources:
 * Amazon Elastic Block Store (EBS) volume used as attached storage for the Kubernetes cluster (a `PersistentVolume`)
 * Demo "guestbook" application, deployed via containers
 * Application Load Balancer (ALB) to access the app
+* AWS Secrets Manager Secret integrated using [secrets-store CSI](https://secrets-store-csi-driver.sigs.k8s.io/)
 
 Plus several other supporting resources, as shown in the following diagram:
 

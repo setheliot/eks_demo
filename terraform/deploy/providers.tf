@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 3.0"
     }
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = "~> 2.0"
+    }
   }
 }
 provider "aws" {
@@ -57,6 +61,14 @@ provider "helm" {
     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
     token                  = data.aws_eks_cluster_auth.cluster_auth.token
   }
+}
+
+# Kubectl provider for applying raw manifests
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.cluster_auth.token
+  load_config_file       = false
 }
 
 

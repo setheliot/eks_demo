@@ -1,0 +1,91 @@
+# AWS Provider configuration
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.95.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.35"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 3.0"
+    }
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = "~> 2.0"
+    }
+    castai = {
+      source  = "castai/castai"
+      version = "~> 8.0"
+    }
+  }
+}
+provider "aws" {
+  region = var.aws_region
+}
+
+data "aws_caller_identity" "current" {}
+
+locals {
+  prefix     = "castai-demo"
+  prefix_env = "${local.prefix}-${var.env_name}"
+
+  cluster_name    = "${local.prefix_env}-cluster"
+  cluster_version = var.eks_cluster_version
+
+  aws_account = data.aws_caller_identity.current.account_id
+
+  ebs_claim_name = "ebs-volume-pv-claim"
+}
+
+#
+# Setup the Kubernetes provider
+# Can only be configured after the EKS cluster is created
+
+
+# Kubernetes provider - uses exec to get fresh token at apply time
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+  }
+}
+
+# Helm provider for the cluster
+provider "helm" {
+  kubernetes = {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    exec = {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+    }
+  }
+}
+
+# Kubectl provider for applying raw manifests
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  load_config_file       = false
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+  }
+}
+
+# CastAI provider for cluster management
+provider "castai" {
+  api_url   = "https://api.cast.ai"
+  api_token = var.castai_api_key
+}
+
+

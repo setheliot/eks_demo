@@ -73,7 +73,7 @@ metadata:
 ---
 apiVersion: v1
 data:
-    API_KEY: YmRlY2Q2MmZlZDAzOTc0Mzc5NTc2NDVhMjBlNzdjNmQwNWI4MjAxMjA4ZmZlY2Q4YTNlOTM0M2YxNjU4OGJmYw==
+    API_KEY: xxxxw==
 kind: Secret
 metadata:
     annotations:
@@ -720,7 +720,7 @@ metadata:
 ---
 apiVersion: v1
 data:
-    API_KEY: YmRlY2Q2MmZlZDAzOTc0Mzc5NTc2NDVhMjBlNzdjNmQwNWI4MjAxMjA4ZmZlY2Q4YTNlOTM0M2YxNjU4OGJmYw==
+    API_KEY: xxxx==
 kind: Secret
 metadata:
     annotations:

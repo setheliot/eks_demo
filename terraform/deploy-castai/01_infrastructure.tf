@@ -31,7 +31,8 @@ module "vpc" {
   name            = "${local.prefix_env}-vpc"
   cidr            = "10.0.0.0/16"
   azs             = slice(data.aws_availability_zones.available.names, 0, local.max_azs)
-  private_subnets = slice(["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"], 0, local.max_azs)
+  // private subnets a are "beefy" since Cast AI seems to like to consume a lot of IPs
+  private_subnets = slice(["10.0.0.0/22", "10.0.4.0/22", "10.0.8.0/22"], 0, local.max_azs)
   public_subnets  = slice(["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"], 0, local.max_azs)
 
   enable_nat_gateway   = true
@@ -84,7 +85,7 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  # coredns, kube-proxy, and vpc-cni are automatically installed by EKS         
+  # coredns, kube-proxy, and vpc-cni are automatically installed by EKS
   cluster_addons = {
     eks-pod-identity-agent = {},
     aws-ebs-csi-driver     = {}

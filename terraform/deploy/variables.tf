@@ -21,7 +21,7 @@ variable "aws_region" {
 variable "eks_cluster_version" {
   description = "EKS version"
   type        = string
-  default     = "1.33"
+  default     = "1.34"
 }
 
 # Use ALB - can set this to false for to get NLB

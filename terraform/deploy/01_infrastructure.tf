@@ -77,6 +77,7 @@ module "eks" {
   cluster_name    = local.cluster_name
   cluster_version = local.cluster_version
 
+  authentication_mode             = "API"
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = false
 

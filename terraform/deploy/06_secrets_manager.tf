@@ -7,7 +7,10 @@
 
 # Create the secret in AWS Secrets Manager
 resource "aws_secretsmanager_secret" "test_secret" {
-  name = "test-secret"
+  name = "${local.prefix_env}-secret"
+
+  # Force immediate deletion on destroy (skip 30-day recovery window)
+  recovery_window_in_days = 0
 
   tags = {
     Environment = local.prefix_env

@@ -117,6 +117,19 @@ resource "aws_iam_role_policy_attachment" "castai_node_alb_controller" {
   role       = aws_iam_role.castai_node_role.name
 }
 
+# Allow traffic from managed node group to cluster security group
+# This is required because CAST AI nodes use the cluster SG while managed nodes
+# use their own SG. Without this rule, managed nodes cannot reach CoreDNS on CAST AI nodes.
+resource "aws_security_group_rule" "managed_node_to_cluster" {
+  description              = "Allow all traffic from managed node group to cluster"
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 0
+  protocol                 = "-1"
+  source_security_group_id = module.eks.node_security_group_id
+  security_group_id        = module.eks.cluster_security_group_id
+}
+
 # CastAI EKS Cluster Module - connects the cluster to CastAI
 module "castai_eks_cluster" {
   source  = "castai/eks-cluster/castai"

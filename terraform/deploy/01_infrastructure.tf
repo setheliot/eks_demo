@@ -118,6 +118,12 @@ module "eks" {
       iam_role_additional_policies = {
         ssm_access = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
       } # iam_role_additional_policies
+
+      # Tags for Cluster Autoscaler discovery
+      tags = {
+        "k8s.io/cluster-autoscaler/enabled"                = "true"
+        "k8s.io/cluster-autoscaler/${local.cluster_name}" = "owned"
+      }
     }   # node_group_1
   }     # eks_managed_node_groups
 

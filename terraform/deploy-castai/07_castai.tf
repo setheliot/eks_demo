@@ -130,6 +130,20 @@ module "castai_eks_cluster" {
   # Delete CastAI-provisioned nodes when cluster is disconnected/destroyed
   delete_nodes_on_disconnect = true
 
+  # Enable Workload Autoscaler to right-size workload resource requests
+  install_workload_autoscaler = true
+
+  # All of these Cast AI settings are set to their default values
+  install_live     = true
+  install_live_cni = true
+
+  install_ai_optimizer      = false
+  install_egressd           = false
+  #install_omni              = false
+  install_pod_mutator       = false
+  install_security_agent    = false
+
+
   # Use our custom node configuration with LBC policy attached
   default_node_configuration = module.castai_eks_cluster.castai_node_configurations["default"]
 
@@ -160,6 +174,7 @@ module "castai_eks_cluster" {
         use_spot_fallbacks = true
         min_cpu            = 2
         max_cpu            = 32
+        min_memory         = 8192  # 8GB minimum to ensure headroom for DaemonSets
         architectures      = ["amd64"]
       }
     }

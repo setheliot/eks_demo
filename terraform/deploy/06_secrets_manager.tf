@@ -1,15 +1,41 @@
-###############
+###############################################################################
 #
-# Secrets Manager integration with EKS using Secrets Store CSI Driver
+# SECRETS MANAGEMENT WITH SECRETS STORE CSI DRIVER
 #
 # Logical order: 06
+##### "Logical order" refers to the order a human would think of these executions
+##### (although Terraform will determine actual order executed)
 #
+###############################################################################
+# This demonstrates how to securely provide secrets to pods using:
+# - AWS Secrets Manager: Stores and manages secrets outside your cluster
+# - Secrets Store CSI Driver: Mounts secrets as files in pods
+#
+# Why use this instead of Kubernetes Secrets?
+# - Centralized secret management across all your AWS resources
+# - Automatic rotation support
+# - Audit logging via CloudTrail
+# - No secrets stored in etcd (the K8s database)
+# - Secrets are fetched at pod startup, not stored in the cluster
+#
+# Architecture:
+# 1. Secret stored in AWS Secrets Manager
+# 2. Secrets Store CSI Driver installed in cluster (Helm)
+# 3. AWS Provider DaemonSet fetches secrets from AWS
+# 4. SecretProviderClass defines which secrets to fetch
+# 5. Pod mounts secrets as files via CSI volume
+###############################################################################
 
-# Create the secret in AWS Secrets Manager
+###############################################################################
+# AWS SECRETS MANAGER SECRET
+###############################################################################
+# Store your secret in AWS Secrets Manager. In production, you'd create this
+# separately (not in Terraform with plaintext values!).
+###############################################################################
 resource "aws_secretsmanager_secret" "test_secret" {
   name = "${local.prefix_env}-secret"
 
-  # Force immediate deletion on destroy (skip 30-day recovery window)
+  # For demo: delete immediately. Production: keep 30-day recovery window!
   recovery_window_in_days = 0
 
   tags = {
@@ -18,6 +44,9 @@ resource "aws_secretsmanager_secret" "test_secret" {
   }
 }
 
+# The actual secret value (JSON format is common for multiple key-value pairs)
+# WARNING: In production, never put real secrets in Terraform code!
+# Use: terraform apply -var="db_password=xxx" or external secret management
 resource "aws_secretsmanager_secret_version" "test_secret_version" {
   secret_id = aws_secretsmanager_secret.test_secret.id
   secret_string = jsonencode({
@@ -27,8 +56,12 @@ resource "aws_secretsmanager_secret_version" "test_secret_version" {
 }
 
 
-
-# IAM policy for Secrets Manager access
+###############################################################################
+# IAM PERMISSIONS FOR SECRETS ACCESS
+###############################################################################
+# The pod needs IAM permissions to read from Secrets Manager.
+# We attach this to the same IRSA role used for DynamoDB (from 04_authentication.tf).
+###############################################################################
 resource "aws_iam_policy" "secrets_manager_policy" {
   name        = "guestbook-secrets-${local.prefix_env}-${var.aws_region}-policy"
   description = "Policy for accessing Secrets Manager"
@@ -48,13 +81,23 @@ resource "aws_iam_policy" "secrets_manager_policy" {
   })
 }
 
-# Attach the policy to the DDB IAM role
+# Attach to the existing IRSA role (pod already uses this ServiceAccount)
 resource "aws_iam_role_policy_attachment" "secrets_manager_attachment" {
   policy_arn = aws_iam_policy.secrets_manager_policy.arn
   role       = aws_iam_role.ddb_access_role.name
 }
 
-# Install Secrets Store CSI Driver via Helm
+###############################################################################
+# SECRETS STORE CSI DRIVER (Helm)
+###############################################################################
+# The CSI Driver is the Kubernetes component that:
+# - Watches for pods with CSI volume mounts
+# - Coordinates with provider (AWS) to fetch secrets
+# - Mounts secrets as files in the pod's filesystem
+#
+# This is the "generic" driver - it needs a provider for each secret store
+# (AWS, Azure, GCP, HashiCorp Vault, etc.)
+###############################################################################
 resource "helm_release" "secrets_store_csi_driver" {
   name       = "csi-secrets-store"
   repository = "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
@@ -64,7 +107,7 @@ resource "helm_release" "secrets_store_csi_driver" {
   values = [
     yamlencode({
       syncSecret = {
-        enabled = true
+        enabled = true # Also sync to K8s Secrets (useful for env vars)
       }
     })
   ]
@@ -72,7 +115,18 @@ resource "helm_release" "secrets_store_csi_driver" {
   depends_on = [module.eks]
 }
 
-# AWS Secrets Manager CSI Provider - ServiceAccount
+###############################################################################
+# AWS SECRETS MANAGER CSI PROVIDER
+###############################################################################
+# The AWS Provider is a DaemonSet that runs on each node. It:
+# - Receives requests from the CSI Driver
+# - Uses IAM credentials to fetch secrets from AWS Secrets Manager
+# - Returns secret data to the CSI Driver for mounting
+#
+# We deploy it manually (not via Helm) to show the components involved.
+###############################################################################
+
+# ServiceAccount for the AWS provider pods
 resource "kubernetes_service_account" "aws_provider" {
   metadata {
     name      = "csi-secrets-store-provider-aws"
@@ -82,7 +136,7 @@ resource "kubernetes_service_account" "aws_provider" {
   depends_on = [helm_release.secrets_store_csi_driver]
 }
 
-# AWS Secrets Manager CSI Provider - ClusterRole
+# RBAC: The provider needs to read pod/node info to validate requests
 resource "kubernetes_cluster_role" "aws_provider" {
   metadata {
     name = "csi-secrets-store-provider-aws-cluster-role"
@@ -134,7 +188,13 @@ resource "kubernetes_cluster_role_binding" "aws_provider" {
   }
 }
 
-# AWS Secrets Manager CSI Provider - DaemonSet
+###############################################################################
+# AWS PROVIDER DAEMONSET
+###############################################################################
+# DaemonSet ensures one provider pod runs on each node.
+# This is required because the CSI driver communicates with the provider
+# via a Unix socket on the local node.
+###############################################################################
 resource "kubernetes_daemonset" "aws_provider" {
   metadata {
     name      = "csi-secrets-store-provider-aws"
@@ -229,7 +289,15 @@ resource "kubernetes_daemonset" "aws_provider" {
   ]
 }
 
-# Create SecretProviderClass
+###############################################################################
+# SECRET PROVIDER CLASS
+###############################################################################
+# This custom resource tells the CSI driver WHICH secrets to fetch and HOW.
+# Pods reference this by name in their volume definition.
+#
+# Think of it as: "When a pod asks for 'test-secret-provider', fetch these
+# secrets from AWS Secrets Manager and mount them as files."
+###############################################################################
 resource "kubectl_manifest" "secret_provider_class" {
   yaml_body = <<-YAML
     apiVersion: secrets-store.csi.x-k8s.io/v1
@@ -238,7 +306,7 @@ resource "kubectl_manifest" "secret_provider_class" {
       name: test-secret-provider
       namespace: default
     spec:
-      provider: aws
+      provider: aws    # Use the AWS provider we installed above
       parameters:
         objects: |
           - objectName: "${aws_secretsmanager_secret.test_secret.name}"
@@ -247,3 +315,22 @@ resource "kubectl_manifest" "secret_provider_class" {
 
   depends_on = [kubernetes_daemonset.aws_provider]
 }
+
+###############################################################################
+# How pods mount secrets (see 05_application.tf):
+#
+# volumes:
+#   - name: secrets-store
+#     csi:
+#       driver: secrets-store.csi.k8s.io
+#       readOnly: true
+#       volumeAttributes:
+#         secretProviderClass: "test-secret-provider"
+#
+# volumeMounts:
+#   - name: secrets-store
+#     mountPath: "/mnt/secrets"
+#     readOnly: true
+#
+# Result: Secret appears as file at /mnt/secrets/<secret-name>
+###############################################################################

@@ -2,6 +2,8 @@
 
 This repo provides the Terraform configuration to deploy a demo app running on an AWS EKS Cluster using best practices. This was created as an _educational_ tool to learn about EKS and Terraform. It is _not_ recommended that this configuration be used in production without further assessment to ensure it meets organization requirements.
 
+There is a also a blog post that goes along with this repo here: [Building a Production-Ready EKS Cluster with Terraform: A Complete Guide](https://builder.aws.com/content/2sVtjrLGB3o65fiz0Q2MyIB22zw/building-a-production-ready-eks-cluster-with-terraform-a-complete-guide).
+
 ## Deployed resources
 
 This Terraform configuration deploys the following resources:

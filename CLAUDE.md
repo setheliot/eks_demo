@@ -50,6 +50,18 @@ terraform apply -var-file=environment/<env>.tfvars -auto-approve
 - **Dependencies**: Most K8s resources include `depends_on = [module.eks]` to handle RBAC propagation timing
 - **Backend state**: Uses S3 + DynamoDB for state locking (must be configured in backend.tf before first use)
 
+### Storage Pattern (EBS CSI)
+- StorageClass uses `WaitForFirstConsumer` to delay PV binding until a pod needs it
+- PVC uses `wait_until_bound = false` so Terraform doesn't hang waiting for a consumer
+- EBS volumes are gp3, encrypted, with `ReadWriteOnce` access mode
+- App mounts the PVC at `/app/data`
+
+### Secrets Pattern (Secrets Store CSI)
+- Two components required: Secrets Store CSI Driver (Helm chart) + AWS Provider (DaemonSet)
+- `SecretProviderClass` resource maps AWS Secrets Manager secrets to pod volumes
+- Secrets appear as files at `/mnt/secrets` inside containers
+- IAM access uses the same IRSA role as DynamoDB (`ddb_access_role`)
+
 ### Providers
 - AWS (~> 5.95.0)
 - Kubernetes (~> 2.35)

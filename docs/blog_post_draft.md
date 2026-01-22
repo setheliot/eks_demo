@@ -70,7 +70,7 @@ Without these tags, your Ingress resources won't work, and you'll spend hours de
 
 ## EKS Cluster Setup
 
-We use the excellent [terraform-aws-modules/eks](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest) module. Here are the key configuration decisions:
+We use the useful [terraform-aws-modules/eks](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest) module. Here are the key configuration decisions:
 
 ### Authentication Mode
 
@@ -101,7 +101,7 @@ eks_managed_node_groups = {
 
 Key points:
 - **Amazon Linux 2023** is the recommended OS for EKS nodes
-- **IMDSv2** prevents SSRF attacks by requiring token-based metadata access
+- **IMDSv2** prevents [SSRF (server-side request forgery)](https://aws.amazon.com/blogs/security/defense-in-depth-open-firewalls-reverse-proxies-ssrf-vulnerabilities-ec2-instance-metadata-service/) attacks by requiring token-based metadata access
 - **Autoscaling bounds** (min/max) are used by the Cluster Autoscaler
 
 ### EKS Add-ons

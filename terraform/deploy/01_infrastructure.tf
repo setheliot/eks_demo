@@ -289,7 +289,6 @@ resource "aws_dynamodb_table" "guestbook" {
   read_capacity  = 2
   write_capacity = 2
   hash_key       = "GuestID"
-  range_key      = "Name"
 
   # DynamoDB Streams captures changes - useful for triggers, replication, analytics
   stream_enabled   = true
@@ -304,11 +303,6 @@ resource "aws_dynamodb_table" "guestbook" {
   attribute {
     name = "GuestID"
     type = "S" # S = String, N = Number, B = Binary
-  }
-
-  attribute {
-    name = "Name"
-    type = "S"
   }
 
   tags = {

@@ -56,11 +56,12 @@ if [[ "$CASTAI_MODE" == true ]]; then
     TF_DIR="$REPO_DIR/terraform/deploy-castai"
     echo "🎯 CastAI mode enabled - using deploy-castai directory"
 
-    # Prompt for CastAI API key if not provided
+    # Require CastAI API key
     if [[ -z "$CASTAI_API_KEY" ]]; then
-        read -r -p "Enter CastAI API key (or press Enter to use 'dummy' for destroy): " CASTAI_API_KEY
+        read -r -p "Enter CastAI API key: " CASTAI_API_KEY
         if [[ -z "$CASTAI_API_KEY" ]]; then
-            CASTAI_API_KEY="dummy"
+            echo "❌ CastAI API key is required in CastAI mode. Pass it with -castai-api-key=<key>"
+            exit 1
         fi
     fi
 else
@@ -93,11 +94,13 @@ if [[ -z "$AWS_REGION" ]]; then
     exit 1
 fi
 
-# Determine cluster name based on mode
+# Determine cluster name and LBC resource prefix based on mode
 if [[ "$CASTAI_MODE" == true ]]; then
     CLUSTER_NAME="castai-demo-${ENV_NAME}-cluster"
+    LBC_NAME_PREFIX="k8s-default-castaide"
 else
     CLUSTER_NAME="eks-demo-${ENV_NAME}-cluster"
+    LBC_NAME_PREFIX="k8s-default-eksdemo"
 fi
 
 # Get AWS Account ID using STS
@@ -171,26 +174,73 @@ else
     TOTAL_STEPS=6
 fi
 
-# CastAI-specific destroy steps (run first, in reverse dependency order)
-if [[ "$CASTAI_MODE" == true ]]; then
-    # Terminate CAST AI provisioned nodes (not managed by Terraform)
-    echo "🏃 $STEP of $TOTAL_STEPS - Terminating CAST AI provisioned nodes..."
-    CASTAI_INSTANCE_IDS=$(aws ec2 describe-instances --region "$AWS_REGION" \
-        --filters "Name=tag:provisioner.cast.ai/managed-by,Values=cast.ai" \
-                  "Name=tag:kubernetes.io/cluster/$CLUSTER_NAME,Values=owned" \
-                  "Name=instance-state-name,Values=running,pending,stopping,stopped" \
-        --query 'Reservations[*].Instances[*].InstanceId' --output text 2>/dev/null)
+# Delete Kubernetes resources first (while LBC is still running on CastAI nodes)
+echo "🏃 $STEP of $TOTAL_STEPS - Running terraform destroy on kubernetes_deployment_v1..."
 
-    if [[ -n "$CASTAI_INSTANCE_IDS" ]]; then
-        echo "  Found CAST AI nodes: $CASTAI_INSTANCE_IDS"
-        aws ec2 terminate-instances --region "$AWS_REGION" --instance-ids $CASTAI_INSTANCE_IDS || echo "⚠️  Some instances may have already been terminated"
-        echo "  Waiting for instances to terminate..."
-        aws ec2 wait instance-terminated --region "$AWS_REGION" --instance-ids $CASTAI_INSTANCE_IDS 2>/dev/null || echo "⚠️  Timeout waiting for termination"
-    else
-        echo "  No CAST AI provisioned nodes found"
+terraform destroy \
+    -auto-approve \
+    -target=kubernetes_deployment_v1.guestbook_app_deployment \
+    $TF_VAR_ARGS
+
+echo "✅ kubernetes_deployment_v1 deleted"
+((STEP++))
+
+
+echo "🏃 $STEP of $TOTAL_STEPS - Running terraform destroy on kubernetes_persistent_volume_claim_v1..."
+
+terraform destroy \
+    -auto-approve \
+    -target=kubernetes_persistent_volume_claim_v1.ebs_pvc \
+    $TF_VAR_ARGS || echo "⚠️  PVC may have already been removed"
+
+echo "✅ kubernetes_persistent_volume_claim_v1 deleted"
+((STEP++))
+
+
+echo "🏃 $STEP of $TOTAL_STEPS - Running terraform destroy on kubernetes_ingress_v1..."
+
+# The AWS LB Controller webhook can block ingress deletion if the controller is unhealthy.
+kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook 2>/dev/null || echo "  (webhook already removed)"
+
+terraform destroy \
+    -auto-approve \
+    -target=module.alb[0].kubernetes_ingress_v1.ingress_alb \
+    $TF_VAR_ARGS || echo "⚠️  Ingress may have already been removed"
+
+# Wait for LBC to delete the ALB (up to 40 seconds)
+echo "  Waiting for ALB to be deleted by Load Balancer Controller..."
+ALB_DELETED=false
+ALB_WAIT=0
+ALB_MAX_WAIT=40
+while [[ $ALB_WAIT -lt $ALB_MAX_WAIT ]]; do
+    REMAINING_ALBS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+        --query "LoadBalancers[?starts_with(LoadBalancerName, '${LBC_NAME_PREFIX}')].LoadBalancerArn" --output text 2>/dev/null)
+    if [[ -z "$REMAINING_ALBS" ]]; then
+        echo "  ALB deleted successfully"
+        ALB_DELETED=true
+        break
     fi
-    echo "✅ CAST AI nodes terminated"
-    ((STEP++))
+    sleep 10
+    ALB_WAIT=$((ALB_WAIT + 10))
+    echo "  Still waiting... (${ALB_WAIT}s/${ALB_MAX_WAIT}s)"
+done
+
+if [[ $ALB_WAIT -ge $ALB_MAX_WAIT ]]; then
+    echo "⚠️  ALB not deleted after ${ALB_MAX_WAIT}s - stripping ingress finalizers as fallback"
+    for ingress in $(kubectl get ingress -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null); do
+        ns=$(echo "$ingress" | cut -d'/' -f1)
+        name=$(echo "$ingress" | cut -d'/' -f2)
+        echo "  Removing finalizers from ingress $ns/$name"
+        kubectl patch ingress "$name" -n "$ns" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+    done
+fi
+
+echo "✅ kubernetes_ingress_v1 deleted"
+((STEP++))
+
+
+# CastAI-specific destroy steps (in reverse dependency order)
+if [[ "$CASTAI_MODE" == true ]]; then
 
     echo "🏃 $STEP of $TOTAL_STEPS - Destroying CastAI cluster module..."
     terraform destroy \
@@ -233,95 +283,73 @@ if [[ "$CASTAI_MODE" == true ]]; then
         $TF_VAR_ARGS || echo "⚠️  CastAI registration may have already been removed"
     echo "✅ CastAI cluster registration destroyed"
     ((STEP++))
+
+    # Terminate CAST AI provisioned nodes (not managed by Terraform)
+    echo "🏃 $STEP of $TOTAL_STEPS - Terminating CAST AI provisioned nodes (fallback)..."
+    CASTAI_INSTANCE_IDS=$(aws ec2 describe-instances --region "$AWS_REGION" \
+        --filters "Name=tag:cast:managed-by,Values=cast.ai" \
+                  "Name=tag:kubernetes.io/cluster/$CLUSTER_NAME,Values=owned" \
+                  "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+        --query 'Reservations[*].Instances[*].InstanceId' --output text 2>/dev/null)
+
+    if [[ -n "$CASTAI_INSTANCE_IDS" ]]; then
+        echo "  Found CAST AI nodes: $CASTAI_INSTANCE_IDS"
+        aws ec2 terminate-instances --region "$AWS_REGION" --instance-ids $CASTAI_INSTANCE_IDS || echo "⚠️  Some instances may have already been terminated"
+        echo "  Waiting for instances to terminate..."
+        aws ec2 wait instance-terminated --region "$AWS_REGION" --instance-ids $CASTAI_INSTANCE_IDS 2>/dev/null || echo "⚠️  Timeout waiting for termination"
+    else
+        echo "  No CAST AI provisioned nodes found"
+    fi
+    echo "✅ CAST AI nodes terminated"
+    ((STEP++))    
 fi
 
-# Run Terraform destroy commands
-echo "🏃 $STEP of $TOTAL_STEPS - Running terraform destroy on kubernetes_deployment_v1..."
+if [[ "$ALB_DELETED" == false ]]; then
+    # Clean up orphaned ALBs created by AWS Load Balancer Controller (not managed by Terraform)
+    # This is a FALLBACK safety net. Normally, deleting the Ingress (above) triggers the LBC to delete the ALB.
+    # However, ALBs can be orphaned if:
+    #   - LBC was unhealthy or already deleted when Ingress was removed
+    #   - Cluster was deleted before the Ingress
+    #   - Ingress was created manually outside of Terraform
+    #   - LBC failed to clean up for any reason
+    echo "🏃 $STEP of $TOTAL_STEPS - Cleaning up orphaned load balancers (fallback)..."
+    LBC_ALB_ARNS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+        --query "LoadBalancers[?starts_with(LoadBalancerName, '${LBC_NAME_PREFIX}')].LoadBalancerArn" --output text 2>/dev/null)
 
-terraform destroy \
-    -auto-approve \
-    -target=kubernetes_deployment_v1.guestbook_app_deployment \
-    $TF_VAR_ARGS
+    for alb_arn in $LBC_ALB_ARNS; do
+        # Check if this ALB is tagged for our cluster
+        CLUSTER_TAG=$(aws elbv2 describe-tags --region "$AWS_REGION" --resource-arns "$alb_arn" \
+            --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER_NAME'].Value" --output text 2>/dev/null)
+        if [[ -n "$CLUSTER_TAG" ]]; then
+            echo "  Deleting ALB: $alb_arn"
+            # Delete listeners first
+            LISTENER_ARNS=$(aws elbv2 describe-listeners --region "$AWS_REGION" --load-balancer-arn "$alb_arn" \
+                --query 'Listeners[*].ListenerArn' --output text 2>/dev/null)
+            for listener_arn in $LISTENER_ARNS; do
+                aws elbv2 delete-listener --region "$AWS_REGION" --listener-arn "$listener_arn" 2>/dev/null || true
+            done
+            # Delete the ALB
+            aws elbv2 delete-load-balancer --region "$AWS_REGION" --load-balancer-arn "$alb_arn" 2>/dev/null || echo "⚠️  Could not delete ALB"
+        fi
+    done
 
-echo "✅ kubernetes_deployment_v1 deleted"
-((STEP++))
+    # Clean up orphaned target groups
+    TG_ARNS=$(aws elbv2 describe-target-groups --region "$AWS_REGION" \
+        --query "TargetGroups[?starts_with(TargetGroupName, '${LBC_NAME_PREFIX}')].TargetGroupArn" --output text 2>/dev/null)
 
+    for tg_arn in $TG_ARNS; do
+        CLUSTER_TAG=$(aws elbv2 describe-tags --region "$AWS_REGION" --resource-arns "$tg_arn" \
+            --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER_NAME'].Value" --output text 2>/dev/null)
+        if [[ -n "$CLUSTER_TAG" ]]; then
+            echo "  Deleting Target Group: $tg_arn"
+            aws elbv2 delete-target-group --region "$AWS_REGION" --target-group-arn "$tg_arn" 2>/dev/null || true
+        fi
+    done
 
-echo "🏃 $STEP of $TOTAL_STEPS - Running terraform destroy on kubernetes_persistent_volume_claim_v1..."
-
-terraform destroy \
-    -auto-approve \
-    -target=kubernetes_persistent_volume_claim_v1.ebs_pvc \
-    $TF_VAR_ARGS || echo "⚠️  PVC may have already been removed"
-
-echo "✅ kubernetes_persistent_volume_claim_v1 deleted"
-((STEP++))
-
-
-echo "🏃 $STEP of $TOTAL_STEPS - Running terraform destroy on kubernetes_ingress_v1..."
-
-# The AWS LB Controller webhook can block ingress deletion if the controller is unhealthy.
-# Proactively remove the webhook and finalizers to prevent hangs.
-kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook 2>/dev/null || echo "  (webhook already removed)"
-
-for ingress in $(kubectl get ingress -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null); do
-    ns=$(echo "$ingress" | cut -d'/' -f1)
-    name=$(echo "$ingress" | cut -d'/' -f2)
-    echo "  Removing finalizers from ingress $ns/$name"
-    kubectl patch ingress "$name" -n "$ns" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
-done
-
-terraform destroy \
-    -auto-approve \
-    -target=module.alb[0].kubernetes_ingress_v1.ingress_alb \
-    $TF_VAR_ARGS || echo "⚠️  Ingress may have already been removed"
-
-echo "✅ kubernetes_ingress_v1 deleted"
-((STEP++))
-
-
-# Clean up orphaned ALBs created by AWS Load Balancer Controller (not managed by Terraform)
-# This is a FALLBACK safety net. Normally, deleting the Ingress (above) triggers the LBC to delete the ALB.
-# However, ALBs can be orphaned if:
-#   - LBC was unhealthy or already deleted when Ingress was removed
-#   - Cluster was deleted before the Ingress
-#   - Ingress was created manually outside of Terraform
-#   - LBC failed to clean up for any reason
-echo "🏃 $STEP of $TOTAL_STEPS - Cleaning up orphaned load balancers (fallback)..."
-LBC_ALB_ARNS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
-    --query "LoadBalancers[?starts_with(LoadBalancerName, 'k8s-')].LoadBalancerArn" --output text 2>/dev/null)
-
-for alb_arn in $LBC_ALB_ARNS; do
-    # Check if this ALB is tagged for our cluster
-    CLUSTER_TAG=$(aws elbv2 describe-tags --region "$AWS_REGION" --resource-arns "$alb_arn" \
-        --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER_NAME'].Value" --output text 2>/dev/null)
-    if [[ -n "$CLUSTER_TAG" ]]; then
-        echo "  Deleting ALB: $alb_arn"
-        # Delete listeners first
-        LISTENER_ARNS=$(aws elbv2 describe-listeners --region "$AWS_REGION" --load-balancer-arn "$alb_arn" \
-            --query 'Listeners[*].ListenerArn' --output text 2>/dev/null)
-        for listener_arn in $LISTENER_ARNS; do
-            aws elbv2 delete-listener --region "$AWS_REGION" --listener-arn "$listener_arn" 2>/dev/null || true
-        done
-        # Delete the ALB
-        aws elbv2 delete-load-balancer --region "$AWS_REGION" --load-balancer-arn "$alb_arn" 2>/dev/null || echo "⚠️  Could not delete ALB"
-    fi
-done
-
-# Clean up orphaned target groups
-TG_ARNS=$(aws elbv2 describe-target-groups --region "$AWS_REGION" \
-    --query "TargetGroups[?starts_with(TargetGroupName, 'k8s-')].TargetGroupArn" --output text 2>/dev/null)
-
-for tg_arn in $TG_ARNS; do
-    CLUSTER_TAG=$(aws elbv2 describe-tags --region "$AWS_REGION" --resource-arns "$tg_arn" \
-        --query "TagDescriptions[0].Tags[?Key=='kubernetes.io/cluster/$CLUSTER_NAME'].Value" --output text 2>/dev/null)
-    if [[ -n "$CLUSTER_TAG" ]]; then
-        echo "  Deleting Target Group: $tg_arn"
-        aws elbv2 delete-target-group --region "$AWS_REGION" --target-group-arn "$tg_arn" 2>/dev/null || true
-    fi
-done
-
-echo "✅ Orphaned load balancers cleaned up"
+    echo "✅ Orphaned load balancers cleaned up"
+else
+    echo "🏃 $STEP of $TOTAL_STEPS - Skipping orphaned load balancer cleanup (ALB already deleted)"
+fi
 ((STEP++))
 
 
@@ -336,10 +364,10 @@ VPC_ID=$(aws ec2 describe-vpcs --region "$AWS_REGION" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null)
 
 if [[ -n "$VPC_ID" && "$VPC_ID" != "None" ]]; then
-    # Find k8s-* security groups (created by EKS/LBC) that aren't the default SG
+    # Find security groups (created by EKS/LBC) that aren't the default SG
     K8S_SGS=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
         --filters "Name=vpc-id,Values=$VPC_ID" \
-        --query "SecurityGroups[?starts_with(GroupName, 'k8s-')].GroupId" --output text 2>/dev/null)
+        --query "SecurityGroups[?starts_with(GroupName, '${LBC_NAME_PREFIX}')].GroupId" --output text 2>/dev/null)
 
     for sg_id in $K8S_SGS; do
         echo "  Deleting orphaned SG: $sg_id"

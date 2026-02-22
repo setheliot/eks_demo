@@ -21,7 +21,7 @@ variable "aws_region" {
 variable "eks_cluster_version" {
   description = "EKS version"
   type        = string
-  default     = "1.34"
+  default     = "1.35"
 }
 
 # Use ALB - can set this to false for to get NLB
@@ -38,5 +38,4 @@ variable "use_alb" {
 variable "castai_api_key" {
   description = "CastAI API key for cluster management"
   type        = string
-  sensitive   = true
 }

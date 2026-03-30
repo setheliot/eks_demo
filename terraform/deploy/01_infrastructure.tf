@@ -68,9 +68,6 @@ module "vpc" {
   }
 
   tags = {
-    Terraform   = "true"
-    Environment = local.prefix_env
-
     # Ensure workspace check logic runs before resources created
     always_zero = length(null_resource.check_workspace)
   }
@@ -167,9 +164,6 @@ module "eks" {
   enable_cluster_creator_admin_permissions = true
 
   tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
-
     # Ensure workspace check logic runs before resources created
     always_zero = length(null_resource.check_workspace)
   }
@@ -213,10 +207,6 @@ resource "aws_security_group" "vpc_endpoint_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
-  }
 }
 
 resource "aws_vpc_endpoint" "private_link_ssm" {
@@ -227,10 +217,6 @@ resource "aws_vpc_endpoint" "private_link_ssm" {
   subnet_ids          = module.vpc.private_subnets
   private_dns_enabled = true
 
-  tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
-  }
 }
 
 resource "aws_vpc_endpoint" "private_link_ssmmessages" {
@@ -241,10 +227,6 @@ resource "aws_vpc_endpoint" "private_link_ssmmessages" {
   subnet_ids          = module.vpc.private_subnets
   private_dns_enabled = true
 
-  tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
-  }
 }
 
 resource "aws_vpc_endpoint" "private_link_ec2messages" {
@@ -255,10 +237,6 @@ resource "aws_vpc_endpoint" "private_link_ec2messages" {
   subnet_ids          = module.vpc.private_subnets
   private_dns_enabled = true
 
-  tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
-  }
 }
 
 # Gateway endpoint for DynamoDB - free and fast!
@@ -269,10 +247,6 @@ resource "aws_vpc_endpoint" "private_link_dynamodb" {
   vpc_endpoint_type = "Gateway" # Gateway endpoints are free (vs Interface endpoints)
   route_table_ids   = module.vpc.private_route_table_ids
 
-  tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
-  }
 }
 
 ###############################################################################
@@ -303,11 +277,6 @@ resource "aws_dynamodb_table" "guestbook" {
   attribute {
     name = "GuestID"
     type = "S" # S = String, N = Number, B = Binary
-  }
-
-  tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
   }
 
   depends_on = [null_resource.check_workspace]

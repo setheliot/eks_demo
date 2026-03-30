@@ -38,10 +38,6 @@ resource "aws_secretsmanager_secret" "test_secret" {
   # For demo: delete immediately. Production: keep 30-day recovery window!
   recovery_window_in_days = 0
 
-  tags = {
-    Environment = local.prefix_env
-    Terraform   = "true"
-  }
 }
 
 # The actual secret value (JSON format is common for multiple key-value pairs)

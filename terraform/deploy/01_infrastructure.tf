@@ -128,9 +128,12 @@ module "eks" {
       use_latest_ami_release_version = true
       instance_types                 = [var.instance_type]
 
+      # Pin all nodes to the first AZ so EBS volumes and nodes are always co-located.
+      subnet_ids = [module.vpc.private_subnets[0]]
+
       min_size     = 1  # Cluster Autoscaler can scale down to this
-      max_size     = 5  # Cluster Autoscaler can scale up to this
-      desired_size = 3  # Starting number of nodes
+      max_size     = 3  # Cluster Autoscaler can scale up to this
+      desired_size = 2  # Starting number of nodes
 
       # Custom launch template gives us control over instance configuration
       use_custom_launch_template = true

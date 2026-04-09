@@ -15,8 +15,18 @@ terraform {
   backend "s3" {
     bucket         = "terraform-state-bucket-eks-demo-uniqueid"
     key            = "eks-demo/terraform.tfstate"
-    dynamodb_table = "terraform-lock"
-    region         = "us-east-1"
+    region         = "eusc-de-east-1"
     encrypt        = false
+    use_lockfile   = true
+
+    endpoints = {
+      ec2      = "https://ec2.eusc-de-east-1.amazonaws.eu"
+      iam      = "https://iam.eusc-de-east-1.amazonaws.eu"
+      sts      = "https://sts.eusc-de-east-1.amazonaws.eu"
+      s3       = "https://s3.eusc-de-east-1.amazonaws.eu"
+      eks      = "https://eks.eusc-de-east-1.amazonaws.eu"
+      dynamodb = "https://dynamodb.eusc-de-east-1.amazonaws.eu"
+      eks      = "https://eks.eusc-de-east-1.amazonaws.eu"
+    }
   }
 }
